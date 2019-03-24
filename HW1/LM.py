@@ -5,12 +5,11 @@ start_symbol = '<start>'
 end_symbol = '<end>'
 start_n_gram=1
 stop_n_gram=4
+charsToRemove = "\r\n"
 
 class LM:
     def __init__(self, data):
-        self.input_data = data
-        self.lines_arr  = self.input_data.replace('\r','').split('<end>')
-        for i in range(len(self.lines_arr)): self.lines_arr[i] += '<end>'
+        self.input_data = data.translate(None, charsToRemove)
 
     @staticmethod
     def get_next_char(str):
@@ -23,20 +22,18 @@ class LM:
         else:
             return (str[0])
 
-    def count_occ(self, lines_arr, n_gram):
+    def count_occ(self, n_gram):
         counter = defaultdict(Counter)
-        for line in lines_arr:
-            while (len(line)):
-                t=''
-                for j in range(n_gram - 1):
-                    next_char = self.get_next_char(line)
-                    t += next_char
-                    line = line[len(next_char):]
-                n_char = self.get_next_char(line)
-                if (n_char == '>'):
-                    print ('y')
-                if (n_gram == 1): line = line[len(n_char):]
-                counter[t][n_char] += 1
+        line = self.input_data
+        while (len(line)):
+            t=''
+            for j in range(n_gram - 1):
+                next_char = self.get_next_char(line)
+                t += next_char
+                line = line[len(next_char):]
+            n_char = self.get_next_char(line)
+            if (n_gram == 1): line = line[len(n_char):]
+            counter[t][n_char] += 1
         return (counter)
 
     def output_counters(self, start_n_gram, stop_n_gram):
@@ -45,7 +42,7 @@ class LM:
         str = ''
 
         for n_gram in range(start_n_gram, stop_n_gram):
-            self.counters_arr.append(self.count_occ(self.lines_arr, n_gram))
+            self.counters_arr.append(self.count_occ(n_gram))
 
         for i in reversed(range(stop_n_gram-start_n_gram)):
             str += '{}-gram:\n'.format(i+start_n_gram)
@@ -57,7 +54,7 @@ class LM:
                     concatenate_chars = key+chars
                     prob = val/sum_of_occurences
                     log_prob = np.log(prob)
-                    str+='{}\t{}\n'.format(concatenate_chars, log_prob)
+                    str+='{:20}{}\n'.format(concatenate_chars, log_prob)
             str+='\n'
         return(str)
 
@@ -68,7 +65,7 @@ def lm(corpus_file, model_file):
     lm_m = LM(input_data)
 
     output = lm_m.output_counters(start_n_gram=start_n_gram, stop_n_gram=stop_n_gram)
-    #print (output)
+    print (output)
 
     with open(model_file, 'w+') as f_output:
         f_output.write(output)
