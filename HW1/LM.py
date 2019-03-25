@@ -1,8 +1,14 @@
 from collections import Counter, defaultdict
 import numpy as np
+import pandas as pd
 
 CHARS_TO_REMOVE = "\r\n"
+START_SYMBOL = '<start>'
+END_SYMBOL = '<end>'
 
+# Module supports going over given input data, counts number of occurrences for each n-gram
+# And output module file according to defined format
+# start/end symbols will be treated as single char
 class LM:
     def __init__(self, data):
         self.input_data    = data.translate(None, CHARS_TO_REMOVE)
@@ -11,6 +17,7 @@ class LM:
         self.start_n_gram  = None
         self.stop_n_gram   = None
 
+    # Returns first char in str. Will treat start/end symbols as single char
     def get_next_char(self,str):
         if (str.find(self.start_symbol)==0):
             return (self.start_symbol)
@@ -21,6 +28,7 @@ class LM:
         else:
             return (str[0])
 
+    # For given n-gram the function will count num of occurrences and return counter
     def count_occ(self, n_gram):
         counter = defaultdict(Counter)
         line = self.input_data
@@ -35,6 +43,8 @@ class LM:
             counter[t][n_char] += 1
         return (counter)
 
+    # The function will create counters list according to n-grams defined
+    # And output the results to output file according to format definition
     def output_counters(self):
         self.counters_arr    = []
         self.n_gram_eval_arr = []
@@ -57,6 +67,7 @@ class LM:
             str+='\n'
         return(str)
 
+# For 1,2,3-Gram each element will contain n-chars, probability and log-probability
 class M3Gram:
     w_i    = None
     w_im1  = None
@@ -78,6 +89,7 @@ class Eval(object):
         self.start_symbol  = None
         self.end_symbol    = None
 
+    # This funtion counts the num of n-grams in model file. For out task - should be 3
     @staticmethod
     def count_n_grams(model_file):
         with open(model_file,'r') as file:
@@ -86,6 +98,7 @@ class Eval(object):
                 if (line[line.find('-'):]=='-gram:\n'): count+=1
         return (count)
 
+    # Returns first char in str. Will treat start/end symbols as single char
     def get_next_char(self, str):
         if (0 == str.find(self.start_symbol)): return self.start_symbol
         if (0 == str.find(self.end_symbol))  : return self.end_symbol
@@ -145,38 +158,47 @@ class Eval(object):
             if (el.w_i==w_i): return el
         return None
 
+def preproc_csv_file(csv_file, start_symbol, end_symbol):
+    df = pd.read_csv(csv_file)
+    data = start_symbol
+    for line in df['tweet_text']:
+        data+='{}{}{}'.format(line, end_symbol, start_symbol)
+    data+=end_symbol
+    return(data)
 
 ###############################
 
 def lm(corpus_file, model_file):
-    with open(corpus_file, 'r') as f_input:
-      input_data = f_input.read()
+    input_data = preproc_csv_file(corpus_file, START_SYMBOL, END_SYMBOL)
 
     lm_m = LM(input_data)
-    lm_m.start_symbol = '<start>'
-    lm_m.end_symbol   = '<end>'
+    lm_m.start_symbol = START_SYMBOL
+    lm_m.end_symbol   = END_SYMBOL
     lm_m.start_n_gram = 1
     lm_m.stop_n_gram  = 4
 
     output = lm_m.output_counters()
-    #print (output)
+    print (output)
 
     with open(model_file, 'w+') as f_output:
         f_output.write(output)
 
 def eval(input_file, model_file, weights):
     eval_m = Eval()
-    eval_m.start_symbol = '<start>'
-    eval_m.end_symbol   = '<end>'
+    eval_m.start_symbol = START_SYMBOL
+    eval_m.end_symbol   = END_SYMBOL
 
     number_of_n_grams = eval_m.count_n_grams(model_file)
     if (number_of_n_grams != len(weights)): raise ValueError('Number of weights does not match number of n_grams in the model file')
     if (float(sum(weights)) != 1.0):        raise ValueError('Weights need to sum to exactly 1.0')
 
+    # Extract weights from weights list
     lambda_3_gram = weights[2]
     lambda_2_gram = weights[1]
     lambda_1_gram = weights[0]
 
+    # Create list of classes for each n-gram
+    # Each element in list should contain: n-chars, Px, logPx
     eval_m.create_3_gram_matrix(model_file)
     eval_m.create_2_gram_matrix(model_file)
     eval_m.create_1_gram_matrix(model_file)
@@ -191,7 +213,7 @@ def eval(input_file, model_file, weights):
 
 ###############################
 
-corpus_file = '/Users/guygozlan/Documents/Private/Binthomi/NLP/git/NLP/HW1/input_file_1.txt'
+corpus_file = '/Users/guygozlan/Documents/Private/Binthomi/NLP/git/NLP/HW1/en_red.csv'
 model_file  = '/Users/guygozlan/Documents/Private/Binthomi/NLP/git/NLP/HW1/output_file_1.txt'
 
 lm(corpus_file, model_file)
