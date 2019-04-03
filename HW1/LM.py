@@ -2,18 +2,19 @@ from collections import Counter, defaultdict, OrderedDict
 import numpy as np
 import pandas as pd
 import random
+import matplotlib.pyplot as plt
 
 ###############################
 
 # Defint the base address of where the data is
-BASE_DATA_FILES_ADDRESS = '/Users/guygozlan/Documents/Private/Binthomi/NLP/git/NLP/HW1/data/'
+BASE_DATA_FILES_ADDRESS = '/content/drive/My Drive/NLP/HW1/data/'
 # Define the start and and symbols
 START_SYMBOL = '<s>'
 END_SYMBOL = '</s>'
 # Define the file names for each language
 LANGUAGE_LIST = ['en', 'es', 'fr', 'in', 'it', 'nl', 'pt', 'tl']
 # Train Vs. Test separation
-DATA_SPLIT = {'train': 0.09, 'test': 0.01 }
+DATA_SPLIT = {'train': 0.9, 'test': 0.1 }
 # For Laplace smoothing - define the vocabulary size
 VOCAB_SIZE = 2000
 # Define weights
@@ -48,13 +49,14 @@ class LM:
         counter = defaultdict(Counter)
         line = self.input_data
         while (len(line)):
+            resed_line = line
             t=''
             for j in range(n_gram - 1):
-                next_char = self.get_next_char(line)
+                next_char = self.get_next_char(resed_line)
                 t += next_char
-                line = line[len(next_char):]
-            n_char = self.get_next_char(line)
-            if (n_gram == 1): line = line[len(n_char):]
+                resed_line = resed_line[len(next_char):]
+            n_char = self.get_next_char(resed_line)
+            line = line[len(self.get_next_char(line)):]
             counter[t][n_char] += 1
         return (counter)
 
@@ -144,33 +146,37 @@ class Eval(object):
 
     # Going over the input char by char - creates the P_interp according to formula
     # For cases where we have unfamiliar data - use Laplace for smoothing
-    # Then, calculate the preplexity according to formula
-    def calc_preplexity(self):
+    # Then, calculate the perplexity according to formula
+    def calc_perplexity(self):
         line = self.input_data
-        sum_log_P_interp = 0.0
+        cross_entr = 0.0
+        N = 0
         while (len(line)>(1+len(self.end_symbol))):
+            N += 1
             t = ''
+            res_srt = line
             for j in range(3):
-                next_char = self.get_next_char(line)
+                next_char = self.get_next_char(res_srt)
                 t += next_char
-                line = line[len(next_char):]
+                res_srt = res_srt[len(next_char):]
+            line = line[len(self.get_next_char(line)):]
             try:
-                sum_log_P_interp += np.log2(self.interpolation_dict[t])
+                cross_entr += np.log2(self.interpolation_dict[t])
             except:
                 # Add One (Laplace) for unigram: If string was not found: Pinterp=(1/VOCAB_SIZE)*unigram_weight + 0 + 0
-                sum_log_P_interp += np.log2(self.weights[2] * 1/VOCAB_SIZE)
+                cross_entr += np.log2(self.weights[2] * 1/VOCAB_SIZE)
             # Skip empty end
             if (line == self.start_symbol+self.end_symbol): break
 
-        # Calculate the preplexity
-        H = -1 * sum_log_P_interp/(len(self.input_data)-2)
-        Preplexity = 2**H
-        return(Preplexity)
+        # Calculate the perplexity
+        H = (-1.0 / N) * cross_entr
+        perplexity = 2**H
+        return(perplexity)
 
 ############################
 
 # The function supports removing links (https://) and tags (@)
-# This will increase preplexity
+# This will increase perplexity
 def clean_row_data(str):
     ret = str
     # Clear links
@@ -203,7 +209,7 @@ def split_to_train_and_test_csvs():
         file_size = sum(1 for line in open(BASE_DATA_FILES_ADDRESS + lang + '.csv'))
         for data_split in ['train', 'test']:
             desired_data_size = int(file_size * DATA_SPLIT[data_split])
-            skip = sorted(random.sample(xrange(1,file_size+1), file_size-desired_data_size))
+            skip = sorted(random.sample(range(1,file_size+1), file_size-desired_data_size))
             df = pd.read_csv(BASE_DATA_FILES_ADDRESS + lang + '.csv', skiprows=skip)
             df.to_csv(BASE_DATA_FILES_ADDRESS + lang + '_' + data_split + '.csv')
 
@@ -224,8 +230,8 @@ def lm(corpus_file, model_file):
     with open(model_file, 'w+') as f_output:
         f_output.write(output)
 
-# Calculate preplexity with model and weights and applying on the input file
-# Return the preplexity
+# Calculate perplexity with model and weights and applying on the input file
+# Return the perplexity
 def eval(input_file, model_file, weights):
     input_data = preproc_csv_file(input_file, START_SYMBOL, END_SYMBOL)
     eval_m = Eval(input_data)
@@ -233,11 +239,11 @@ def eval(input_file, model_file, weights):
     eval_m.end_symbol   = END_SYMBOL
     eval_m.weights      = weights
     eval_m.calc_Pinterpolation(model_file)
-    preplexity = eval_m.calc_preplexity()
-    return(preplexity)
+    perplexity = eval_m.calc_perplexity()
+    return(perplexity)
 
 # Pre-proccess the data into seperated CSVs
-# For each cell in DF: calculate preplexity
+# For each cell in DF: calculate perplexity
 # return DataFram results of all permutations
 def run():
     # Split the data into test and training sets CSVs
@@ -249,12 +255,12 @@ def run():
             test_input_file_path  = BASE_DATA_FILES_ADDRESS + lang_test  + '_test.csv'
             output_file_path      = BASE_DATA_FILES_ADDRESS + lang_test  + '_model.txt'
             lm(train_input_file_path, output_file_path)
-            preplexity = eval(test_input_file_path, output_file_path, WEIGHTS_LIST)
-            results[lang_test][lang_train] = preplexity
-    print (results)
+            perplexity = eval(test_input_file_path, output_file_path, WEIGHTS_LIST)
+            results[lang_test][lang_train] = perplexity
+    return (results)
 
 
 ###############################
 
-run()
-
+results = run()
+print results
